@@ -1,0 +1,215 @@
+<html>
+    <head>
+        <title>BytePusherJS</title>
+        <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+        <meta content="utf-8" http-equiv="encoding">
+
+        <script>
+
+            var Memory = [];
+            var ctx;
+            var imageData;
+            var Keys= [];
+            var PC = 0;
+
+            var CurrAnimationFrame;
+
+            document.addEventListener('keydown', KeyDownEvent);
+            document.addEventListener('keyup', KeyUpEvent);
+
+            var ValidKeys = ['0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'];
+            function KeyDownEvent(e){
+                if (!ValidKeys.includes(e.key)) return;
+
+                if (!Keys.includes(e.key)){
+                    Keys.push(e.key);
+                }
+
+            }
+
+            function KeyUpEvent(e){
+                if (!ValidKeys.includes(e.key)) return;
+
+
+                if (Keys.includes(e.key)){
+                    
+                    for(var i=0;i<Keys.length;i++){
+                        if (Keys[i] === e.key){
+                            Keys.splice(i,1);
+                            break;
+                        }
+                    }
+                }
+
+                
+            }
+
+            function GetKeys(){
+                var key = 0;
+
+                for(var k in Keys){
+                    var mKey = Keys[k];
+                    switch(mKey){
+                        case '0': key+=1; break;
+                        case '1': key+=2; break;
+                        case '2': key+=4; break;
+                        case '3': key+=8; break;
+                        case '4': key+=16; break;
+                        case '5': key+=32; break;
+                        case '6': key+=64; break;
+                        case '7': key+=128; break;
+                        case '8': key+=256; break;
+                        case '9': key+=512; break;
+                        case 'a': key+=1024; break;
+                        case 'b': key+=2048; break;
+                        case 'c': key+=4096; break;
+                        case 'd': key+=8192; break;
+                        case 'e': key+=16384; break;
+                        case 'f': key+=32768; break;
+                    }
+                }
+                return key;
+            }
+
+            window.addEventListener('load', function() {
+                document.getElementById('romFile').addEventListener("change",function(){
+                    var reader = new FileReader();
+                    reader.readAsArrayBuffer(this.files[0]);
+                    reader.onloadend = function (evt) {
+                        if (evt.target.readyState == FileReader.DONE) {
+                            console.log("Loaded File");
+                            var array = new Uint8Array(evt.target.result);
+                            InitVM(array);
+                        }
+                    }
+                });
+
+            });
+
+            
+            
+            function InitVM(array){
+                if (CurrAnimationFrame!=undefined){
+                    cancelAnimationFrame(CurrAnimationFrame);
+                    console.log("Cancelled: " + CurrAnimationFrame);
+                }
+
+
+
+                ctx = document.getElementById("bp").getContext("2d");
+
+                imageData=ctx.createImageData(256,256);
+
+
+                for (var i = 0; i < array.length; i++) {
+                    Memory[i] = array[i];
+                }
+
+                var TotalMemory = 0x1000008;
+                for (var i=array.length;i<TotalMemory;i++){
+                    Memory[i] = 0;
+                }
+
+
+                PC = 0;
+                console.log("Initialized VM");
+                
+                Step();
+            }
+
+            
+
+            
+            function Update(){
+                // get program counter
+                var PC_START = 0x2;
+                //Keys[0] = Memory[0x0];
+                //Keys[1] = Memory[0x1];
+                var s = GetKeys();
+                Memory[0x0] = ((s & 0xFF00) >> 8);
+                Memory[0x1] = (s & 0xFF);
+
+                PC = Read3Bytes(PC_START);
+                //console.log(PC);
+
+                for(var i=0;i<65536;++i){
+                    var A = Read3Bytes(PC);
+                    var B = Read3Bytes(PC + 3);
+
+                    Memory[B] = Memory[A];
+                    PC = Read3Bytes(PC + 6);
+                }
+
+                //console.log(PC);
+
+            }
+
+            function RenderDisplay(){
+                
+                if (ctx==undefined) return;
+
+                var PIXEL_START = 0x5;
+                
+                var ZZ = Memory[PIXEL_START];
+                var buf=imageData.data;//new Uint32Array(data.data.buffer);
+                
+                var i=0;
+                for(var YY = 0; YY < 256; ++YY)
+                {
+                    for(var XX = 0; XX < 256; ++XX)
+                    {
+                        // A value of ZZ means: pixel(XX, YY) is at address ZZYYXX. 
+                        var pixelAddress = (ZZ << 16) + (YY << 8) + XX; 
+
+                        var pixel = Memory[pixelAddress];
+
+                        if (pixel>215){
+                            pixel = 0;
+                        }
+
+                        var blue = ((pixel % 6));
+                        var green = ((((pixel - blue) / 6) % 6));
+                        var red = ((((pixel - blue - (6 * green)) / 36) % 6));
+
+                        //var wat = red * 0x33 << 16 | green * 0x33 << 8 | blue*0x33;
+
+                        buf[i++] = red * 0x33;
+                        buf[i++] = green * 0x33;
+                        buf[i++] = blue * 0x33;
+                        buf[i++] = 255;
+                    }
+                }
+
+                ctx.putImageData(imageData,0,0);
+            }
+
+
+            function PlayAudio(){
+                // todo: add audio support
+            }
+
+
+            function Read3Bytes(startAddress){
+                return (Memory[startAddress] << 16) + (Memory[startAddress + 1] << 8) + Memory[startAddress + 2];
+            }
+
+            
+
+            function Step(){
+                Update();
+                RenderDisplay();
+                PlayAudio();
+
+                CurrAnimationFrame = requestAnimationFrame(Step);
+            }
+
+
+        </script>
+    </head>
+    <body>
+        <canvas id="bp" width="256" height="256" style="border:1px solid black"></canvas>
+        </br>
+        </br>
+        <input type="file" name="romFile" id="romFile">
+    </body>
+</html>
