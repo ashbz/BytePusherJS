@@ -11,3 +11,5 @@ Pretty straightforward. Seems to be hitting 60 fps quite easily on Firefox and C
 - [x] VM implementation
 - [x] Keyboard support
 - [ ] Audio support
+- [ ] Better page layout
+- [ ] Load roms from remote URL instead of locally
